@@ -10,6 +10,9 @@ public class JobApplication
     public int? SalaryMax { get; set; }
     public string? JobAdUrl { get; set; }
 
+    public int UserId { get; set; }
+    public AppUser? User { get; set; }
+
     public int CompanyId { get; set; }
     public Company? Company { get; set; }
 

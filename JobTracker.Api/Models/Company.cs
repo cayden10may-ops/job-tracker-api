@@ -7,5 +7,8 @@ public class Company
     public string? Website { get; set; }
     public string? Location { get; set; }
 
+    public int UserId { get; set; }
+    public AppUser? User { get; set; }
+
     public List<JobApplication> Applications { get; set; } = new();
 }

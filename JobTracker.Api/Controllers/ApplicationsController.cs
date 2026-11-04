@@ -1,18 +1,20 @@
 using System.Linq.Expressions;
 using JobTracker.Api.Data;
 using JobTracker.Api.Dtos;
+using JobTracker.Api.Extensions;
 using JobTracker.Api.Models;
 using JobTracker.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class ApplicationsController(AppDbContext db) : ControllerBase
 {
-    // One projection reused by every endpoint, translated into SQL by EF Core
     private static readonly Expression<Func<JobApplication, ApplicationResponse>> ToResponse =
         a => new ApplicationResponse(
             a.Id, a.RoleTitle, a.Status, a.AppliedOn, a.SalaryMin, a.SalaryMax,
@@ -22,7 +24,8 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<PagedResult<ApplicationResponse>>> GetAll(
         [FromQuery] ApplicationQuery q, CancellationToken ct)
     {
-        var query = db.JobApplications.AsNoTracking().AsQueryable();
+        var userId = User.GetUserId();
+        var query = db.JobApplications.AsNoTracking().Where(a => a.UserId == userId);
 
         if (q.Status.HasValue)
             query = query.Where(a => a.Status == q.Status.Value);
@@ -60,8 +63,9 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ApplicationResponse>> GetById(int id, CancellationToken ct)
     {
+        var userId = User.GetUserId();
         var application = await db.JobApplications.AsNoTracking()
-            .Where(a => a.Id == id)
+            .Where(a => a.Id == id && a.UserId == userId)
             .Select(ToResponse)
             .FirstOrDefaultAsync(ct);
 
@@ -72,7 +76,9 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<ApplicationResponse>> Create(
         ApplicationRequest request, CancellationToken ct)
     {
-        if (!await db.Companies.AnyAsync(c => c.Id == request.CompanyId, ct))
+        var userId = User.GetUserId();
+
+        if (!await db.Companies.AnyAsync(c => c.Id == request.CompanyId && c.UserId == userId, ct))
         {
             ModelState.AddModelError(nameof(request.CompanyId), "Company does not exist.");
             return ValidationProblem(ModelState);
@@ -80,6 +86,7 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
 
         var application = new JobApplication
         {
+            UserId = userId,
             RoleTitle = request.RoleTitle.Trim(),
             CompanyId = request.CompanyId,
             AppliedOn = request.AppliedOn ?? DateOnly.FromDateTime(DateTime.UtcNow),
@@ -103,10 +110,12 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, ApplicationRequest request, CancellationToken ct)
     {
-        var application = await db.JobApplications.FindAsync(new object[] { id }, ct);
+        var userId = User.GetUserId();
+        var application = await db.JobApplications
+            .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId, ct);
         if (application is null) return NotFound();
 
-        if (!await db.Companies.AnyAsync(c => c.Id == request.CompanyId, ct))
+        if (!await db.Companies.AnyAsync(c => c.Id == request.CompanyId && c.UserId == userId, ct))
         {
             ModelState.AddModelError(nameof(request.CompanyId), "Company does not exist.");
             return ValidationProblem(ModelState);
@@ -127,7 +136,9 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<ApplicationResponse>> ChangeStatus(
         int id, StatusUpdateRequest request, CancellationToken ct)
     {
-        var application = await db.JobApplications.FindAsync(new object[] { id }, ct);
+        var userId = User.GetUserId();
+        var application = await db.JobApplications
+            .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId, ct);
         if (application is null) return NotFound();
 
         var target = request.Status!.Value;
@@ -174,7 +185,8 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
     [HttpGet("{id:int}/history")]
     public async Task<ActionResult<List<StatusChangeResponse>>> GetHistory(int id, CancellationToken ct)
     {
-        if (!await db.JobApplications.AnyAsync(a => a.Id == id, ct))
+        var userId = User.GetUserId();
+        if (!await db.JobApplications.AnyAsync(a => a.Id == id && a.UserId == userId, ct))
             return NotFound();
 
         var history = await db.StatusChanges.AsNoTracking()
@@ -189,10 +201,12 @@ public class ApplicationsController(AppDbContext db) : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var application = await db.JobApplications.FindAsync(new object[] { id }, ct);
+        var userId = User.GetUserId();
+        var application = await db.JobApplications
+            .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId, ct);
         if (application is null) return NotFound();
 
-        db.JobApplications.Remove(application); // notes and history are deleted too (cascade)
+        db.JobApplications.Remove(application);
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

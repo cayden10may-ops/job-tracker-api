@@ -1,12 +1,15 @@
 using JobTracker.Api.Data;
 using JobTracker.Api.Dtos;
+using JobTracker.Api.Extensions;
 using JobTracker.Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public class CompaniesController(AppDbContext db) : ControllerBase
 {
@@ -14,7 +17,8 @@ public class CompaniesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<List<CompanyResponse>>> GetAll(
         [FromQuery] string? search, CancellationToken ct)
     {
-        var query = db.Companies.AsNoTracking().AsQueryable();
+        var userId = User.GetUserId();
+        var query = db.Companies.AsNoTracking().Where(c => c.UserId == userId);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -33,8 +37,9 @@ public class CompaniesController(AppDbContext db) : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<CompanyResponse>> GetById(int id, CancellationToken ct)
     {
+        var userId = User.GetUserId();
         var company = await db.Companies.AsNoTracking()
-            .Where(c => c.Id == id)
+            .Where(c => c.Id == id && c.UserId == userId)
             .Select(c => new CompanyResponse(c.Id, c.Name, c.Website, c.Location, c.Applications.Count))
             .FirstOrDefaultAsync(ct);
 
@@ -44,9 +49,10 @@ public class CompaniesController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CompanyResponse>> Create(CompanyRequest request, CancellationToken ct)
     {
+        var userId = User.GetUserId();
         var name = request.Name.Trim();
 
-        if (await db.Companies.AnyAsync(c => c.Name.ToLower() == name.ToLower(), ct))
+        if (await db.Companies.AnyAsync(c => c.UserId == userId && c.Name.ToLower() == name.ToLower(), ct))
         {
             return Problem(
                 title: "Company already exists",
@@ -56,6 +62,7 @@ public class CompaniesController(AppDbContext db) : ControllerBase
 
         var company = new Company
         {
+            UserId = userId,
             Name = name,
             Website = request.Website,
             Location = request.Location
@@ -71,11 +78,13 @@ public class CompaniesController(AppDbContext db) : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, CompanyRequest request, CancellationToken ct)
     {
-        var company = await db.Companies.FindAsync(new object[] { id }, ct);
+        var userId = User.GetUserId();
+        var company = await db.Companies.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId, ct);
         if (company is null) return NotFound();
 
         var name = request.Name.Trim();
-        if (await db.Companies.AnyAsync(c => c.Id != id && c.Name.ToLower() == name.ToLower(), ct))
+        if (await db.Companies.AnyAsync(
+                c => c.UserId == userId && c.Id != id && c.Name.ToLower() == name.ToLower(), ct))
         {
             return Problem(
                 title: "Company already exists",
@@ -94,7 +103,8 @@ public class CompaniesController(AppDbContext db) : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var company = await db.Companies.FindAsync(new object[] { id }, ct);
+        var userId = User.GetUserId();
+        var company = await db.Companies.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId, ct);
         if (company is null) return NotFound();
 
         if (await db.JobApplications.AnyAsync(a => a.CompanyId == id, ct))

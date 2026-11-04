@@ -1,19 +1,23 @@
 using JobTracker.Api.Data;
 using JobTracker.Api.Dtos;
+using JobTracker.Api.Extensions;
 using JobTracker.Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/applications/{applicationId:int}/notes")]
 public class NotesController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<NoteResponse>>> GetAll(int applicationId, CancellationToken ct)
     {
-        if (!await db.JobApplications.AnyAsync(a => a.Id == applicationId, ct))
+        var userId = User.GetUserId();
+        if (!await db.JobApplications.AnyAsync(a => a.Id == applicationId && a.UserId == userId, ct))
             return NotFound();
 
         var notes = await db.Notes.AsNoTracking()
@@ -29,7 +33,8 @@ public class NotesController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<NoteResponse>> Create(
         int applicationId, NoteRequest request, CancellationToken ct)
     {
-        if (!await db.JobApplications.AnyAsync(a => a.Id == applicationId, ct))
+        var userId = User.GetUserId();
+        if (!await db.JobApplications.AnyAsync(a => a.Id == applicationId && a.UserId == userId, ct))
             return NotFound();
 
         var note = new Note
@@ -48,8 +53,11 @@ public class NotesController(AppDbContext db) : ControllerBase
     [HttpDelete("{noteId:int}")]
     public async Task<IActionResult> Delete(int applicationId, int noteId, CancellationToken ct)
     {
-        var note = await db.Notes
-            .FirstOrDefaultAsync(n => n.Id == noteId && n.JobApplicationId == applicationId, ct);
+        var userId = User.GetUserId();
+        var note = await db.Notes.FirstOrDefaultAsync(n =>
+            n.Id == noteId &&
+            n.JobApplicationId == applicationId &&
+            n.JobApplication!.UserId == userId, ct);
         if (note is null) return NotFound();
 
         db.Notes.Remove(note);

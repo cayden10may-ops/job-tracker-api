@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JobTracker.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261028173647_InitialCreate")]
+    [Migration("20261029184354_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -19,6 +19,32 @@ namespace JobTracker.Api.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
+
+            modelBuilder.Entity("JobTracker.Api.Models.AppUser", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
 
             modelBuilder.Entity("JobTracker.Api.Models.Company", b =>
                 {
@@ -34,12 +60,16 @@ namespace JobTracker.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Website")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name");
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique();
 
                     b.ToTable("Companies");
                 });
@@ -75,9 +105,14 @@ namespace JobTracker.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("JobApplications");
                 });
@@ -106,6 +141,46 @@ namespace JobTracker.Api.Migrations
                     b.ToTable("Notes");
                 });
 
+            modelBuilder.Entity("JobTracker.Api.Models.StatusChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FromStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("JobApplicationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobApplicationId");
+
+                    b.ToTable("StatusChanges");
+                });
+
+            modelBuilder.Entity("JobTracker.Api.Models.Company", b =>
+                {
+                    b.HasOne("JobTracker.Api.Models.AppUser", "User")
+                        .WithMany("Companies")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("JobTracker.Api.Models.JobApplication", b =>
                 {
                     b.HasOne("JobTracker.Api.Models.Company", "Company")
@@ -114,7 +189,15 @@ namespace JobTracker.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("JobTracker.Api.Models.AppUser", "User")
+                        .WithMany("Applications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Company");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("JobTracker.Api.Models.Note", b =>
@@ -128,6 +211,24 @@ namespace JobTracker.Api.Migrations
                     b.Navigation("JobApplication");
                 });
 
+            modelBuilder.Entity("JobTracker.Api.Models.StatusChange", b =>
+                {
+                    b.HasOne("JobTracker.Api.Models.JobApplication", "JobApplication")
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("JobApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("JobApplication");
+                });
+
+            modelBuilder.Entity("JobTracker.Api.Models.AppUser", b =>
+                {
+                    b.Navigation("Applications");
+
+                    b.Navigation("Companies");
+                });
+
             modelBuilder.Entity("JobTracker.Api.Models.Company", b =>
                 {
                     b.Navigation("Applications");
@@ -136,6 +237,8 @@ namespace JobTracker.Api.Migrations
             modelBuilder.Entity("JobTracker.Api.Models.JobApplication", b =>
                 {
                     b.Navigation("Notes");
+
+                    b.Navigation("StatusHistory");
                 });
 #pragma warning restore 612, 618
         }

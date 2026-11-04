@@ -12,6 +12,21 @@ namespace JobTracker.Api.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "Users",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Email = table.Column<string>(type: "TEXT", maxLength: 254, nullable: false),
+                    PasswordHash = table.Column<string>(type: "TEXT", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Users", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Companies",
                 columns: table => new
                 {
@@ -19,11 +34,18 @@ namespace JobTracker.Api.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     Website = table.Column<string>(type: "TEXT", nullable: true),
-                    Location = table.Column<string>(type: "TEXT", nullable: true)
+                    Location = table.Column<string>(type: "TEXT", nullable: true),
+                    UserId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Companies", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Companies_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -38,6 +60,7 @@ namespace JobTracker.Api.Migrations
                     SalaryMin = table.Column<int>(type: "INTEGER", nullable: true),
                     SalaryMax = table.Column<int>(type: "INTEGER", nullable: true),
                     JobAdUrl = table.Column<string>(type: "TEXT", nullable: true),
+                    UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     CompanyId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
@@ -47,6 +70,12 @@ namespace JobTracker.Api.Migrations
                         name: "FK_JobApplications_Companies_CompanyId",
                         column: x => x.CompanyId,
                         principalTable: "Companies",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_JobApplications_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -72,10 +101,33 @@ namespace JobTracker.Api.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "StatusChanges",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    FromStatus = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    ToStatus = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    ChangedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    JobApplicationId = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StatusChanges", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StatusChanges_JobApplications_JobApplicationId",
+                        column: x => x.JobApplicationId,
+                        principalTable: "JobApplications",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
-                name: "IX_Companies_Name",
+                name: "IX_Companies_UserId_Name",
                 table: "Companies",
-                column: "Name");
+                columns: new[] { "UserId", "Name" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_JobApplications_CompanyId",
@@ -83,9 +135,25 @@ namespace JobTracker.Api.Migrations
                 column: "CompanyId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_JobApplications_UserId",
+                table: "JobApplications",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Notes_JobApplicationId",
                 table: "Notes",
                 column: "JobApplicationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StatusChanges_JobApplicationId",
+                table: "StatusChanges",
+                column: "JobApplicationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Email",
+                table: "Users",
+                column: "Email",
+                unique: true);
         }
 
         /// <inheritdoc />
@@ -95,10 +163,16 @@ namespace JobTracker.Api.Migrations
                 name: "Notes");
 
             migrationBuilder.DropTable(
+                name: "StatusChanges");
+
+            migrationBuilder.DropTable(
                 name: "JobApplications");
 
             migrationBuilder.DropTable(
                 name: "Companies");
+
+            migrationBuilder.DropTable(
+                name: "Users");
         }
     }
 }

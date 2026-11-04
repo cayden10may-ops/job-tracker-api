@@ -9,6 +9,13 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Hosting platforms such as Render tell the app which port to listen on
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwt = jwtSection.Get<JwtSettings>() ?? new JwtSettings();
 
@@ -48,18 +55,31 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// In production, create or update the database when the app starts
+if (app.Environment.IsProduction())
+{
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+}
+
 app.UseExceptionHandler();
+
+// The docs page is public on purpose: this is a demo API
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+app.MapGet("/", () => Results.Redirect("/scalar/v1"));
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 app.Run();
+
 public partial class Program { }

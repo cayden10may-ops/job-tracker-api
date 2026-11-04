@@ -4,7 +4,7 @@
 
 A REST API for tracking job applications, built with C# and ASP.NET Core. Users register, log in, and manage their own companies, applications and notes. Every status change follows enforced workflow rules and is recorded, which powers a stats endpoint.
 
-**Live API docs:** LIVE-URL
+**Live API docs:** [LIVE-URL](https://job-tracker-api-rc8n.onrender.com/scalar/v1)
 
 > Hosted on a free tier, so the first request after a quiet period can take up to a minute. Demo data resets when the server restarts.
 
